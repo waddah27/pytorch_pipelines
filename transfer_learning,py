@@ -1,0 +1,74 @@
+# =================================
+# Transfer learning simple example
+# =================================
+
+import torch
+import torch.utils.data
+import torchvision
+import torchvision.transforms as transforms
+import torch.nn as nn
+from torchvision.models import mobilenet_v2
+
+from model_train import model_trainer
+from model_baselines import SimpleCNN
+
+# Device configuration
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Hyper-parameters
+BATCH_SIZE = 64
+NUM_EPOCHS = 1
+LEARNING_RATE = 0.001
+
+# Image preprocessing modules
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+])
+
+# Data loading
+train_dataset = torchvision.datasets.CIFAR10(
+    root='./cifar-10',
+    train=True,
+    download=True,
+    transform=transform
+)
+train_loader = torch.utils.data.DataLoader(
+    train_dataset,
+    batch_size=BATCH_SIZE,
+    shuffle=True
+)
+
+test_dataset = torchvision.datasets.CIFAR10(
+    root='./cifar-10',
+    train=False,
+    download=True,
+    transform=transform
+)
+test_loader = torch.utils.data.DataLoader(
+    test_dataset,
+    batch_size=BATCH_SIZE,
+    shuffle=False
+)
+
+# Model
+model = mobilenet_v2(pretrained=True).to(DEVICE)
+for param in model.features[:17]:
+    param.requires_grad = False
+
+model.classifier[1] = nn.Linear(1280, 640)
+model.classifier.append(nn.ReLU())
+model.classifier.append(nn.Linear(640, 10))
+
+trainer = model_trainer(
+    model=model,
+    model_name="mobilenet",
+    n_epochs=NUM_EPOCHS,
+    lr=LEARNING_RATE,
+    is_rnn=False
+)
+
+trainer.train(
+    loaders={"train": train_loader, "test": test_loader},
+    load_checkpoint=True
+)
