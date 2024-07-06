@@ -36,7 +36,7 @@ model = models[model_name].to(DEVICE)
 data = "mnist"
 data_loaders = DataLoaders(data=data, batch_size=batch_size).load_data()
 # model trainer: wrapping the model over the dataset
-trainer = model_trainer(model=model, model_name=model_name, n_epochs=num_epochs, lr=learning_rate, is_rnn=True) # set is_rnn = True for RNN, LSTM, GRU
+trainer = model_trainer(model=model, model_name=model_name, n_epochs=num_epochs, lr=learning_rate, is_rnn=True, device=DEVICE) # set is_rnn = True for RNN, LSTM, GRU
 
 # training the model using the dataset and validating it
 trainer.train(loaders=data_loaders, load_checkpoint=True)

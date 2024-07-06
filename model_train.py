@@ -5,9 +5,8 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 from data_loader import DataLoaders
+from tqdm import tqdm
 
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class model_trainer:
     """
     Model wrapper for training and testing a PyTorch model.
@@ -19,12 +18,15 @@ class model_trainer:
         lr (float, optional): Learning rate for the optimizer. Defaults to 0.001.
         is_rnn (bool, optional): Flag indicating if the model is a recurrent neural network.
             Defaults to False.
+        device (str, optional): Device to be used for training. Defaults to "cpu".
     """
-    def __init__(self, model: nn.Module, model_name: str, n_epochs: int = 1, lr: float = 0.001, is_rnn: bool = False):
+    def __init__(self, model: nn.Module, model_name: str, n_epochs: int = 1, lr: float = 0.001,
+                 is_rnn: bool = False, device: str = "cpu"):
         self.model = model
         self.ckpt_filename = f"ckpt_{model_name}.pth.tar"
         self.n_epochs = n_epochs
         self.is_rnn = is_rnn
+        self.device = device
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
         self.accuracy = 0
@@ -40,19 +42,18 @@ class model_trainer:
                 self.load_checkpoint()
             except:
                 print("Failed to load checkpoint. Starting from scratch.")
-                
-        self.model = self.model.to(device)
-        for epoch in range(self.n_epochs):
-            for batch_idx, (data, targets) in enumerate(train_loader):
+
+        self.model = self.model.to(self.device)
+        for epoch in tqdm(range(self.n_epochs)):
+            for batch_idx, (data, targets) in enumerate(tqdm(train_loader)):
 
                 if self.is_rnn:
                     data = data.squeeze(1)
-                data = data.to(device)
-                targets = targets.to(device)
+                data = data.to(self.device)
+                targets = targets.to(self.device)
                 scores = self.model(data)
                 loss = self.criterion(scores, targets)
-                if batch_idx % 100 == 0:
-                    print(f"Epoch {epoch+1}/{self.n_epochs}, batch {batch_idx+1}/{len(train_loader)}, loss = {loss.item():.4f}")
+                tqdm(desc=f"Epoch {epoch+1}/{self.n_epochs}, batch {batch_idx+1}/{len(train_loader)}, loss = {loss.item():.4f}")
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
@@ -77,7 +78,7 @@ class model_trainer:
         with torch.no_grad():
             if self.is_rnn:
                 x = x.squeeze(1)
-            x = x.to(device)
+            x = x.to(self.device)
             scores = self.model(x)
             _, predictions = scores.max(1)
             return predictions
@@ -100,13 +101,7 @@ class model_trainer:
         self.model.eval()
         with torch.no_grad():
             for x, y in loader:
-                # if self.is_rnn:
-                #     x = x.squeeze(1)
-                # x = x.to(device)
-
-                y = y.to(device)
-                # scores = self.model(x)
-                # _, preds = scores.max(1)
+                y = y.to(self.device)
                 preds = self.predict(x)
                 num_correct += (preds == y).sum()
                 num_samples += preds.size(0)
@@ -130,9 +125,9 @@ class model_trainer:
         print("=> Saving checkpoint")
         torch.save(ckpt, self.ckpt_filename)
 
-    def load_checkpoint(self, device="cpu"):
+    def load_checkpoint(self):
         print("=> Loading checkpoint")
-        ckpt = torch.load(self.ckpt_filename, map_location=device)
+        ckpt = torch.load(self.ckpt_filename, map_location=self.device)
         self.model.load_state_dict(ckpt["state_dict"])
         self.optimizer.load_state_dict(ckpt["optimizer"])
         self.n_epochs = ckpt["epoch"]
